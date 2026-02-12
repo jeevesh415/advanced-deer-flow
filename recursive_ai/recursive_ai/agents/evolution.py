@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from langchain_core.prompts import ChatPromptTemplate
 from recursive_ai.core.protocol import AgentStatus, Task
 from recursive_ai.memory.long_term import CognitiveMemory
+from recursive_ai.memory.skills import SkillLibrary
 
 # Define tools
 @tool
@@ -49,6 +50,7 @@ class SoftwareEngineer:
     """Agent capable of modifying the codebase."""
     def __init__(self, memory: CognitiveMemory, model_name: str = "gpt-4o"):
         self.memory = memory
+        self.skills = SkillLibrary()
         self.llm = ChatOpenAI(model=model_name, temperature=0)
         self.tools = [list_files, read_file, write_file, run_command]
         self.llm_with_tools = self.llm.bind_tools(self.tools)
@@ -58,16 +60,32 @@ class SoftwareEngineer:
         """Writes code to satisfy a requirement."""
         self.status = AgentStatus.WORKING
 
+        # 0. Retrieve Skills
+        try:
+            relevant_skills = self.skills.retrieve_skill(task_description)
+            skills_context = "\n".join([doc.page_content for doc in relevant_skills])
+        except Exception:
+            skills_context = "No relevant skills found."
+
         # 1. Plan
         planning_prompt = ChatPromptTemplate.from_template(
             """You are a senior software architect. Create a plan to implement: {task}.
             Available tools: read_file, write_file, run_command.
+
+            RELEVANT CODE PATTERNS (Use these if applicable):
+            {skills}
+
             Current Directory: {cwd}
             """
         )
         cwd = os.getcwd()
         plan_chain = planning_prompt | self.llm
-        plan = plan_chain.invoke({"task": task_description, "cwd": cwd})
+        # Invoke with context
+        plan = plan_chain.invoke({
+            "task": task_description,
+            "cwd": cwd,
+            "skills": skills_context
+        })
 
         # 2. Execute (Loop)
         # For simplicity in this v1, we let the LLM execute tools in a single turn if possible,

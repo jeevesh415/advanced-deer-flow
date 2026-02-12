@@ -5,6 +5,8 @@ from langchain_openai import ChatOpenAI
 from recursive_ai.memory.long_term import CognitiveMemory
 from recursive_ai.agents.acquisition import create_research_agent
 from recursive_ai.agents.evolution import create_software_engineer
+from recursive_ai.agents.scientist import create_scientist
+from recursive_ai.agents.reflector import create_reflector
 import operator
 
 # Define State
@@ -32,7 +34,12 @@ def planner_node(state: AgentState):
     Current Task: {task}
     History: {messages[-2:] if len(messages)>1 else messages}
 
-    Decide the next step: 'research', 'code', or 'finish'.
+    Decide the next step:
+    - 'research': To gather information.
+    - 'code': To implement a solution.
+    - 'experiment': To test abstract hypotheses in the lab (use this for optimization or unknowns).
+    - 'finish': If the task is complete.
+
     Return ONLY the word.
     """
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
@@ -43,8 +50,29 @@ def planner_node(state: AgentState):
         return {"next_step": "research", "iterations": iterations + 1}
     elif "code" in decision:
         return {"next_step": "code", "iterations": iterations + 1}
+    elif "experiment" in decision:
+        return {"next_step": "experiment", "iterations": iterations + 1}
     else:
         return {"next_step": "end"}
+
+def experiment_node(state: AgentState):
+    """Executes abstract experiments."""
+    task = state['task']
+    try:
+        memory = CognitiveMemory()
+        scientist = create_scientist(memory)
+        report = scientist.conduct_experiment(task)
+        return {"messages": [SystemMessage(content=f"Experiment Report: {report}")]}
+    except Exception as e:
+        return {"messages": [SystemMessage(content=f"Experiment Failed: {e}")]}
+
+def reflector_node(state: AgentState):
+    """Analyzes the run and updates strategy."""
+    task = state['task']
+    messages = state['messages']
+    reflector = create_reflector()
+    insight = reflector.reflect_on_execution(messages, task, success=True) # Assume success if we reached here
+    return {"messages": [SystemMessage(content=f"Meta-Cognition Insight: {insight}")]}
 
 def review_node(state: AgentState):
     """Reviews code and runs tests."""
@@ -108,6 +136,8 @@ def create_graph():
     workflow.add_node("researcher", research_node)
     workflow.add_node("coder", code_node)
     workflow.add_node("reviewer", review_node)
+    workflow.add_node("experimenter", experiment_node)
+    workflow.add_node("reflector", reflector_node)
 
     workflow.set_entry_point("planner")
 
@@ -117,13 +147,15 @@ def create_graph():
         {
             "research": "researcher",
             "code": "coder",
-            "finish": END,
-            "end": END
+            "experiment": "experimenter",
+            "finish": "reflector",
+            "end": "reflector"
         }
     )
 
     workflow.add_edge("researcher", "planner")
     workflow.add_edge("coder", "reviewer")
+    workflow.add_edge("experimenter", "planner")
 
     workflow.add_conditional_edges(
         "reviewer",
@@ -133,5 +165,7 @@ def create_graph():
             "planner": "planner"
         }
     )
+
+    workflow.add_edge("reflector", END)
 
     return workflow.compile()

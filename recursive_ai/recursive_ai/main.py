@@ -1,7 +1,7 @@
 import sys
 import argparse
 from langchain_core.messages import HumanMessage
-from recursive_ai.graph import create_graph
+from recursive_ai.core.meta import load_dynamic_graph
 
 def main():
     parser = argparse.ArgumentParser(description="Recursive AI Autonomous System")
@@ -11,7 +11,8 @@ def main():
 
     print(f"🚀 Initializing Recursive AI with task: {args.task}")
 
-    workflow = create_graph()
+    create_graph_fn = load_dynamic_graph()
+    workflow = create_graph_fn()
 
     initial_state = {
         "messages": [HumanMessage(content=args.task)],
