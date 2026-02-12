@@ -6,6 +6,7 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage
 from recursive_ai.core.protocol import Message, Task, Observation, AgentStatus
 from recursive_ai.memory.long_term import CognitiveMemory
 
@@ -39,6 +40,20 @@ class ResearchAgent:
             return text[:10000] # Limit context window usage
         except Exception as e:
             return f"Error visiting {url}: {e}"
+
+    def analyze_image(self, url: str) -> str:
+        """Analyzes an image using GPT-4o Vision capabilities."""
+        try:
+            message = HumanMessage(
+                content=[
+                    {"type": "text", "text": "What is in this image? Explain technical diagrams or code if present."},
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            )
+            response = self.llm.invoke([message])
+            return response.content
+        except Exception as e:
+            return f"Vision Analysis Failed: {e}"
 
     def perform_research(self, query: str, depth: str = "brief") -> str:
         """Conducts research on a topic."""

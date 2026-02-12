@@ -7,6 +7,7 @@ from recursive_ai.agents.acquisition import create_research_agent
 from recursive_ai.agents.evolution import create_software_engineer
 from recursive_ai.agents.scientist import create_scientist
 from recursive_ai.agents.reflector import create_reflector
+from recursive_ai.learning.dataset import create_collector
 import operator
 
 # Define State
@@ -67,12 +68,23 @@ def experiment_node(state: AgentState):
         return {"messages": [SystemMessage(content=f"Experiment Failed: {e}")]}
 
 def reflector_node(state: AgentState):
-    """Analyzes the run and updates strategy."""
+    """Analyzes the run, updates strategy, and saves training data."""
     task = state['task']
     messages = state['messages']
     reflector = create_reflector()
+
+    # 1. Update Strategy
     insight = reflector.reflect_on_execution(messages, task, success=True) # Assume success if we reached here
-    return {"messages": [SystemMessage(content=f"Meta-Cognition Insight: {insight}")]}
+
+    # 2. Save Training Data
+    try:
+        collector = create_collector()
+        collector.save_trace(task, messages)
+        data_msg = "Run saved to finetuning dataset."
+    except Exception as e:
+        data_msg = f"Failed to save dataset: {e}"
+
+    return {"messages": [SystemMessage(content=f"Meta-Cognition Insight: {insight}. {data_msg}")]}
 
 def review_node(state: AgentState):
     """Reviews code and runs tests."""

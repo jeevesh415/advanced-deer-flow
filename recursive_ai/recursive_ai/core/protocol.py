@@ -18,6 +18,8 @@ class Message(BaseModel):
     recipient: str
     priority: int = Field(default=1, ge=1, le=5)  # 1 is normal, 5 is critical
     content: str
+    image_url: Optional[str] = None # For multi-modal input (Vision)
+    image_base64: Optional[str] = None # For screenshot data
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class Task(Message):
