@@ -7,6 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from recursive_ai.core.protocol import AgentStatus, Task
 from recursive_ai.memory.long_term import CognitiveMemory
 from recursive_ai.memory.skills import SkillLibrary
+from recursive_ai.core.simulation import create_simulator
 
 # Define tools
 @tool
@@ -92,6 +93,18 @@ class SoftwareEngineer:
         # but robust implementation requires a loop (LangGraph handles this better).
         # Here we just return the plan for the Graph to execute.
         return plan.content
+
+    def simulate_and_apply(self, code_block: str, test_cmd: str, target_file: str) -> str:
+        """Advanced execution: Simulate first, then apply."""
+        simulator = create_simulator()
+        success, output = simulator.simulate_execution(code_block, test_cmd)
+
+        if success:
+            # Commit to real file system
+            write_file(target_file, code_block)
+            return f"Simulation Passed. Code applied to {target_file}.\nOutput: {output}"
+        else:
+            return f"Simulation Failed. Code NOT applied.\nOutput: {output}"
 
     def execute_code_action(self, instructions: str):
         """Directly executes tools based on instructions."""

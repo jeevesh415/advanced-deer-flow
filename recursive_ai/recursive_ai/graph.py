@@ -8,7 +8,10 @@ from recursive_ai.agents.evolution import create_software_engineer
 from recursive_ai.agents.scientist import create_scientist
 from recursive_ai.agents.reflector import create_reflector
 from recursive_ai.learning.dataset import create_collector
+from recursive_ai.core.planner import create_tot_planner
+from recursive_ai.core.swarm import create_swarm_manager
 import operator
+import asyncio
 
 # Define State
 class AgentState(TypedDict):
@@ -19,42 +22,19 @@ class AgentState(TypedDict):
 
 # Define Nodes
 def planner_node(state: AgentState):
-    """Decides the next action based on state."""
+    """Uses Tree of Thoughts to decide the next action."""
     messages = state['messages']
     task = state.get('task', "No task")
-
-    # Simple logic for now: alternating research and coding
-    # In a real advanced system, use an LLM to decide dynamically
-    current_step = state.get('next_step', 'start')
     iterations = state.get('iterations', 0)
 
-    if iterations > 5:
+    if iterations > 15: # Increased limit for deeper work
         return {"next_step": "end"}
 
-    prompt = f"""You are the Cortex of an autonomous AI.
-    Current Task: {task}
-    History: {messages[-2:] if len(messages)>1 else messages}
+    planner = create_tot_planner()
+    # ToT logic returns 'research', 'code', 'experiment', 'swarm', or 'finish'
+    next_step = planner.select_best_step(task, messages)
 
-    Decide the next step:
-    - 'research': To gather information.
-    - 'code': To implement a solution.
-    - 'experiment': To test abstract hypotheses in the lab (use this for optimization or unknowns).
-    - 'finish': If the task is complete.
-
-    Return ONLY the word.
-    """
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
-    response = llm.invoke([SystemMessage(content=prompt)])
-    decision = response.content.strip().lower()
-
-    if "research" in decision:
-        return {"next_step": "research", "iterations": iterations + 1}
-    elif "code" in decision:
-        return {"next_step": "code", "iterations": iterations + 1}
-    elif "experiment" in decision:
-        return {"next_step": "experiment", "iterations": iterations + 1}
-    else:
-        return {"next_step": "end"}
+    return {"next_step": next_step, "iterations": iterations + 1}
 
 def experiment_node(state: AgentState):
     """Executes abstract experiments."""
@@ -66,6 +46,19 @@ def experiment_node(state: AgentState):
         return {"messages": [SystemMessage(content=f"Experiment Report: {report}")]}
     except Exception as e:
         return {"messages": [SystemMessage(content=f"Experiment Failed: {e}")]}
+
+def swarm_node(state: AgentState):
+    """Executes subtasks in parallel."""
+    task = state['task']
+    try:
+        memory = CognitiveMemory()
+        manager = create_swarm_manager(memory)
+        # LangGraph nodes are sync by default unless async is configured.
+        # We run the async method in a loop.
+        report = asyncio.run(manager.decompose_and_execute(task))
+        return {"messages": [SystemMessage(content=f"Swarm Report: {report}")]}
+    except Exception as e:
+        return {"messages": [SystemMessage(content=f"Swarm Failed: {e}")]}
 
 def reflector_node(state: AgentState):
     """Analyzes the run, updates strategy, and saves training data."""
@@ -150,6 +143,7 @@ def create_graph():
     workflow.add_node("reviewer", review_node)
     workflow.add_node("experimenter", experiment_node)
     workflow.add_node("reflector", reflector_node)
+    workflow.add_node("swarm", swarm_node)
 
     workflow.set_entry_point("planner")
 
@@ -160,6 +154,7 @@ def create_graph():
             "research": "researcher",
             "code": "coder",
             "experiment": "experimenter",
+            "swarm": "swarm",
             "finish": "reflector",
             "end": "reflector"
         }
@@ -168,6 +163,7 @@ def create_graph():
     workflow.add_edge("researcher", "planner")
     workflow.add_edge("coder", "reviewer")
     workflow.add_edge("experimenter", "planner")
+    workflow.add_edge("swarm", "planner")
 
     workflow.add_conditional_edges(
         "reviewer",
