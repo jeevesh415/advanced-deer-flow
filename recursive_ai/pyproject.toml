@@ -1,0 +1,25 @@
+[project]
+name = "recursive_ai"
+version = "0.1.0"
+description = "An autonomous, self-improving AI system with advanced capabilities."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph",
+    "langchain",
+    "langchain-community",
+    "langchain-core",
+    "langchain-openai",
+    "langchain-chroma",
+    "chromadb",
+    "tavily-python",
+    "duckduckgo-search",
+    "pydantic",
+    "numpy",
+    "pandas",
+    "requests",
+    "beautifulsoup4",
+]
+
+[tool.setuptools]
+packages = ["recursive_ai"]
